@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script>
+		async function convertCanvas(ctx, xres, yres)
+		{
+			var imgData = ctx.getImageData(0, 0, xres, yres);		
+			var pixels = imgData.data;
+
+			//grayscale
+			var p = 8;
+			var bit = 0;
+			var d = 0;
+			for(var i = 0; i < pixels.length; i += 4)
+			{
+				var y = Math.round(pixels[i] * .2126 + pixels[i + 1] * .7152 + pixels[i + 2] * .0722);
+				pixels[i] = pixels[i + 1] = pixels[i + 2] = y;
+				d |= (1 << bit) * (y >> 7);
+			}
+			//dithering
+			for(var y = 0; y < yres; y++)
+				for(var x = 0; x < xres; x++)
+				{
+					var e = 0;
+					var i = (y * xres + x) * 4;
+					if(pixels[i] < 128)
+					{
+						e = pixels[i];
+						pixels[i] = 0;
+					}
+					else
+					{
+						e = pixels[i] - 255;
+						pixels[i] = 255;
+					}
+					/*
+					if(x < xres - 1) pixels[i + 4] += (e * 7) / 16;
+					if(y < yres - 1) 
+					{
+						if(x > 0) pixels[i - 4 + xres * 4] += (e * 3) / 16;
+						pixels[i + xres * 4] += (e * 5) / 16;
+						if(x < xres - 1) pixels[i + 4 + xres * 4] += (e * 1) / 16;
+					}*/
+				}
+			var out = "const char pic[] = {";
+			for(var y = 0; y < yres; y++)
+				for(var x = 0; x < xres; x++)
+				{
+					var i = (y * xres + x) * 4;
+					pixels[i + 1] = pixels[i + 2] = pixels[i];
+					out += pixels[i] > 127 ? "0,": "1,";
+				}
+			out += "};";
+			
+			//create buffer
+			var data = new Array(xres * yres);
+			for(var i = 0; i < pixels.length; i += 4)
+			{
+				d = d << 1; 
+				d |= pixels[i] >> 7;
+				bit++;
+				if (bit == 8)
+				{
+					data[p] = ~d;
+					d = 0;
+					bit = 0;
+					p++;
+				}
+			}
+			ctx.putImageData(imgData, 0, 0);
+			document.getElementById("out").innerHTML = out;
+		}
+
+		function convertFile(event)
+		{
+			var reader = new FileReader();
+			var file = event.target.files[0];
+			reader.onload = function()
+			{
+				var img = document.createElement("img");
+				img.onload = function()
+				{
+					var canvas = document.querySelector('canvas');
+					var ctx = canvas.getContext('2d');
+					/*canvas.width = img.width;
+					canvas.height = img.height;
+					ctx.drawImage(img, 0, 0, img.width, img.height);*/
+					ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+					convertCanvas(ctx, canvas.width, canvas.height);
+				}
+				img.src = reader.result;
+			}
+			if(file)
+				reader.readAsDataURL(file);
+		}
+
+	</script>
+</head>
+
+<body style="font-family: arial">
+	<h1><a href="https://youtube.com/bitlunislab">bitluni</a>'s b/w image converter</h1>
+	Open an image file to convert it<br><br>
+	<input type="file" onchange="convertFile(event)"><br><br>
+	<canvas width="25px" height="16px" ></canvas><br>
+	<div id="out"></div>
+</body>
+</html>
